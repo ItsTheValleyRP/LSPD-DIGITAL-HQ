@@ -27,6 +27,13 @@ The next phase is a separate Supabase project with:
 
 Division applications remain in Discord and are intentionally not part of this website.
 
-## Preview
+## Deployment
 
-Enable GitHub Pages in **Settings → Pages** and select **Deploy from a branch → main → / (root)**.
+A GitHub Actions workflow is included at `.github/workflows/deploy.yml`. It runs on pushes to `main` and can also be started manually from the repository's **Actions** tab. It validates the HTML entry point and inline JavaScript, then deploys the repository to GitHub Pages.
+
+One-time repository setup:
+1. Open **Settings → Pages**.
+2. Under **Build and deployment**, set **Source** to **GitHub Actions**.
+3. Open the **Actions** tab and check the latest **Deploy LSPD Digital HQ to GitHub Pages** run.
+
+The public site is not confirmed live until the Actions run succeeds and the Pages URL opens successfully.
