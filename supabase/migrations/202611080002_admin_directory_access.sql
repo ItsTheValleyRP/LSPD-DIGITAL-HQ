@@ -37,6 +37,8 @@ $$;
 revoke all on function public.can_view_all_personnel() from public, anon;
 grant execute on function public.can_view_all_personnel() to authenticated;
 
+-- Replace the directory read policy so administrators and the designated
+-- Super Admin can see all profile records, including pending/rejected ones.
 drop policy if exists profiles_admin_read_all on public.profiles;
 create policy profiles_admin_read_all
 on public.profiles
@@ -44,7 +46,8 @@ for select
 to authenticated
 using (public.can_view_all_personnel());
 
--- Keep the existing Super Admin-only write/RPC rules intact.
--- Administrators receive directory visibility only; account approvals,
--- system-role assignment, rank changes, and division assignments remain
--- controlled by their existing server-side function permissions.
+-- IMPORTANT:
+-- This migration grants directory visibility only to administrators.
+-- It does not remove permissions previously granted by other RPC functions.
+-- Rank changes, division membership management, approvals, and role changes
+-- must continue to be enforced by their own server-side authorization checks.
