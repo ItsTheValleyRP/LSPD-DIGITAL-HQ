@@ -10,9 +10,9 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   select auth.uid() = '7d618e2e-7770-4925-a8e2-e01be9783843'::uuid;
-$;
+$$;
 
 revoke all on function public.is_super_admin() from public, anon;
 grant execute on function public.is_super_admin() to authenticated;
