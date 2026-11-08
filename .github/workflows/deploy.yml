@@ -24,11 +24,21 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
-      - name: Validate site files
+      - name: Validate site files and JavaScript
         run: |
           test -f index.html
           test -s index.html
-          echo "LSPD Digital HQ entry page found."
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          html = Path("index.html").read_text(encoding="utf-8")
+          scripts = re.findall(r"<script>(.*?)</script>", html, flags=re.S)
+          if not scripts:
+              raise SystemExit("No inline application script found.")
+          Path("/tmp/lspd-digital-hq.js").write_text(scripts[-1], encoding="utf-8")
+          PY
+          node --check /tmp/lspd-digital-hq.js
+          echo "LSPD Digital HQ files and JavaScript passed validation."
 
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
