@@ -63,14 +63,14 @@ button,input{font:inherit}button{cursor:pointer}.shell{display:flex;min-height:1
  </section>
 
  <section class="view" id="admin">
-  <div class="eyebrow">SUPER ADMINISTRATOR</div><h1 style="font-size:38px;margin:10px 0">Control Panel</h1><p style="color:var(--muted);max-width:700px;margin:0 0 22px">Review new accounts, approve department personnel, and assign ranks, system roles, and division memberships.</p>
+  <div class="eyebrow">SUPER ADMINISTRATOR</div><h1 style="font-size:38px;margin:10px 0">Control Panel</h1><p style="color:var(--muted);max-width:700px;margin:0 0 22px">View every account in the department. Super Administrators can approve accounts and assign ranks, system roles, and division memberships.</p>
   <div class="adminwrap"><div class="adminstats"><div class="adminstat"><small>PENDING APPROVALS</small><strong id="pendingCount">—</strong></div><div class="adminstat"><small>APPROVED PERSONNEL</small><strong id="approvedCount">—</strong></div><div class="adminstat"><small>YOUR ACCESS</small><strong style="font-size:18px">SUPER ADMIN</strong></div></div>
    <div class="adminpanel"><h2>Pending account approvals</h2><p>Newly registered accounts remain unapproved until you review them.</p><div id="pendingList" class="adminempty">Loading approval queue…</div></div>
-   <div class="adminpanel"><h2>Personnel management</h2><p>Assign department rank, system permissions, and division positions to approved members.</p><div id="personnelList" class="adminempty">Loading personnel…</div></div>
+   <div class="adminpanel"><h2>All accounts</h2><p>Complete account list, including pending, approved, and rejected accounts. Only the Super Administrator can change account permissions or assignments.</p><div id="personnelList" class="adminempty">Loading personnel…</div></div>
    <div id="adminMessage" class="adminmsg" role="status" aria-live="polite"></div>
   </div>
  </section>
- <section class="view" id="placeholder"><div class="eyebrow">DEPARTMENT RESOURCE</div><h1 id="placeholderTitle" style="font-size:38px;margin:10px 0">Personnel Directory</h1><p id="placeholderText" style="color:var(--muted);max-width:620px">This department resource will be connected during the backend setup.</p><div class="notice"><span>ⓘ</span><div><b>Coming with secure account setup</b>This area is part of the Digital HQ plan. Its data and permissions will be connected after the Supabase project is configured.</div></div></section>
+ <section class="view" id="placeholder"><div class="eyebrow">DEPARTMENT RESOURCE</div><h1 id="placeholderTitle" style="font-size:38px;margin:10px 0">Personnel Directory</h1><p id="placeholderText" style="color:var(--muted);max-width:620px">This department resource will be connected during the backend setup.</p><div class="notice"><span>ⓘ</span><div><b>Resource not connected yet</b>This section's live tools and records have not been built yet. Your account permissions are separate from feature availability.</div></div></section>
  <div class="footerline"><span>© LSPD DIGITAL HEADQUARTERS</span><span>SEPARATE FROM NIGHTFALL INTELLIGENCE</span></div>
 </main>
 </div>
@@ -125,8 +125,11 @@ async function loadAdminPanel(){
  if(authError||!user){msg.textContent="Please sign in with your Super Administrator account first.";return;}
  const {data:roles,error:roleError}=await supabaseClient.from("system_roles").select("role").eq("user_id",user.id);
  if(roleError){msg.textContent="Could not verify your permissions: "+roleError.message;return;}
- if(!(roles||[]).some(r=>r.role==="super_admin")){msg.textContent="Access denied. This panel is restricted to the Super Administrator.";return;}
- msg.textContent="Access verified.";
+ const roleNames=(roles||[]).map(r=>r.role);
+ const isSuperAdmin=roleNames.includes("super_admin");
+ const isAdministrator=isSuperAdmin||roleNames.includes("administrator");
+ if(!isAdministrator){msg.textContent="Access denied. This panel is restricted to the Super Administrator and Administrators.";return;}
+ msg.textContent=isSuperAdmin?"Super Administrator access verified.":"Administrator view access verified. Account changes are restricted to the Super Administrator.";
  const {data:profiles,error}=await supabaseClient.from("profiles").select("id,display_name,department_rank,badge_number,active,approval_status,created_at").order("created_at",{ascending:false});
  if(error){msg.textContent="Could not load personnel. Run the admin approval SQL migration in the repository first. Details: "+error.message;return;}
  adminProfileCache=profiles||[];
@@ -135,14 +138,16 @@ async function loadAdminPanel(){
  document.getElementById("pendingCount").textContent=pending.length;
  document.getElementById("approvedCount").textContent=approved.length;
  const pendingList=document.getElementById("pendingList");
- pendingList.innerHTML=pending.length?pending.map(p=>'<div class="adminrow"><div><strong>'+escapeAdmin(p.display_name||"Unnamed account")+'</strong><small>'+escapeAdmin(p.id)+' · '+new Date(p.created_at).toLocaleDateString()+'</small></div><div><small>Awaiting review</small></div><div class="admincontrols"><button class="adminbtn" data-approve="'+p.id+'">Approve</button><button class="adminbtn danger" data-reject="'+p.id+'">Reject</button></div></div>').join(""):'<div class="adminempty">No accounts are waiting for approval.</div>';
- const personnel=adminProfileCache.filter(p=>p.approval_status==="approved"&&p.active);
- document.getElementById("personnelList").innerHTML=personnel.length?personnel.map(p=>'<div class="adminrow"><div><strong>'+escapeAdmin(p.display_name||"Unnamed account")+'</strong><small>'+escapeAdmin(p.badge_number||"No badge")+' · '+escapeAdmin(p.department_rank||"Officer")+'</small></div><div class="admincontrols"><select data-rank="'+p.id+'">'+rankOptions.map(x=>'<option '+(x===p.department_rank?'selected':'')+'>'+x+'</option>').join("")+'</select></div><div class="admincontrols"><button class="adminbtn" data-save-rank="'+p.id+'">Save rank</button><select data-role="'+p.id+'"><option value="">System role…</option>'+systemRoleOptions.map(x=>'<option value="'+x+'">'+x.replace("_"," ")+'</option>').join("")+'</select><button class="adminbtn" data-add-role="'+p.id+'">Grant</button></div><div class="admincontrols"><select data-division="'+p.id+'">'+divisionOptions.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join("")+'</select><select data-divrole="'+p.id+'"><option value="member">Member</option><option value="deputy">Deputy Head</option><option value="head">Head</option></select><button class="adminbtn" data-add-division="'+p.id+'">Assign division</button></div></div>').join(""):'<div class="adminempty">No approved personnel yet.</div>';
- pendingList.querySelectorAll("[data-approve]").forEach(b=>b.onclick=()=>reviewApproval(b.dataset.approve,"approved"));
- pendingList.querySelectorAll("[data-reject]").forEach(b=>b.onclick=()=>reviewApproval(b.dataset.reject,"rejected"));
- document.getElementById("personnelList").querySelectorAll("[data-save-rank]").forEach(b=>b.onclick=()=>saveRank(b.dataset.saveRank));
- document.getElementById("personnelList").querySelectorAll("[data-add-role]").forEach(b=>b.onclick=()=>grantRole(b.dataset.addRole));
- document.getElementById("personnelList").querySelectorAll("[data-add-division]").forEach(b=>b.onclick=()=>grantDivision(b.dataset.addDivision));
+ pendingList.innerHTML=pending.length?pending.map(p=>'<div class="adminrow"><div><strong>'+escapeAdmin(p.display_name||"Unnamed account")+'</strong><small>'+escapeAdmin(p.id)+' · '+new Date(p.created_at).toLocaleDateString()+'</small></div><div><small>Awaiting review</small></div><div class="admincontrols">'+(isSuperAdmin?'<button class="adminbtn" data-approve="'+p.id+'">Approve</button><button class="adminbtn danger" data-reject="'+p.id+'">Reject</button>':'<small>View only</small>')+'</div></div>').join(""):'<div class="adminempty">No accounts are waiting for approval.</div>';
+ const personnel=adminProfileCache;
+ document.getElementById("personnelList").innerHTML=personnel.length?personnel.map(p=>'<div class="adminrow"><div><strong>'+escapeAdmin(p.display_name||"Unnamed account")+'</strong><small>'+escapeAdmin(p.id)+' · '+escapeAdmin(p.badge_number||"No badge")+' · '+escapeAdmin(p.department_rank||"Officer")+' · '+escapeAdmin(p.approval_status||"unknown")+'</small></div>'+(isSuperAdmin?'<div class="admincontrols"><select data-rank="'+p.id+'">'+rankOptions.map(x=>'<option '+(x===p.department_rank?'selected':'')+'>'+x+'</option>').join("")+'</select><button class="adminbtn" data-save-rank="'+p.id+'">Save rank</button></div><div class="admincontrols"><select data-role="'+p.id+'"><option value="">System role…</option>'+systemRoleOptions.map(x=>'<option value="'+x+'">'+x.replace("_"," ")+'</option>').join("")+'</select><button class="adminbtn" data-add-role="'+p.id+'">Grant role</button></div><div class="admincontrols"><select data-division="'+p.id+'">'+divisionOptions.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join("")+'</select><select data-divrole="'+p.id+'"><option value="member">Member</option><option value="deputy">Deputy Head</option><option value="head">Head</option></select><button class="adminbtn" data-add-division="'+p.id+'">Assign division</button></div>':'<div><small>'+(p.active?'Active':'Inactive')+'</small></div>')+'</div>').join(""):'<div class="adminempty">No accounts found.</div>';
+ if(isSuperAdmin){
+  pendingList.querySelectorAll("[data-approve]").forEach(b=>b.onclick=()=>reviewApproval(b.dataset.approve,"approved"));
+  pendingList.querySelectorAll("[data-reject]").forEach(b=>b.onclick=()=>reviewApproval(b.dataset.reject,"rejected"));
+  document.getElementById("personnelList").querySelectorAll("[data-save-rank]").forEach(b=>b.onclick=()=>saveRank(b.dataset.saveRank));
+  document.getElementById("personnelList").querySelectorAll("[data-add-role]").forEach(b=>b.onclick=()=>grantRole(b.dataset.addRole));
+  document.getElementById("personnelList").querySelectorAll("[data-add-division]").forEach(b=>b.onclick=()=>grantDivision(b.dataset.addDivision));
+ }
 }
 function escapeAdmin(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
 async function reviewApproval(id,decision){const {error}=await supabaseClient.rpc("review_personnel_approval",{p_target_user_id:id,p_decision:decision});if(error){document.getElementById("adminMessage").textContent="Approval update failed: "+error.message+" — make sure the SQL migration has been run.";return;}document.getElementById("adminMessage").textContent="Account "+decision+".";await loadAdminPanel();}
