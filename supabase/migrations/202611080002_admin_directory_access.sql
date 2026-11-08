@@ -1,6 +1,22 @@
 -- LSPD Digital HQ: administrator account directory access
 -- Run this migration in the LSPD Digital HQ Supabase SQL Editor.
 
+-- Lock the Super Administrator identity to the designated owner account.
+-- This prevents another account from gaining Super Administrator access
+-- merely by inserting a role row.
+create or replace function public.is_super_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $
+  select auth.uid() = '7d618e2e-7770-4925-a8e2-e01be9783843'::uuid;
+$;
+
+revoke all on function public.is_super_admin() from public, anon;
+grant execute on function public.is_super_admin() to authenticated;
+
 -- Administrators may view the full account directory, but this does not
 -- grant them Super Administrator powers or permission to change roles.
 create or replace function public.can_view_all_personnel()
