@@ -1,0 +1,34 @@
+-- LSPD Digital HQ: administrator account directory access
+-- Run this migration in the LSPD Digital HQ Supabase SQL Editor.
+
+-- Administrators may view the full account directory, but this does not
+-- grant them Super Administrator powers or permission to change roles.
+create or replace function public.can_view_all_personnel()
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.system_roles r
+    where r.user_id = auth.uid()
+      and r.role in ('super_admin', 'administrator')
+  );
+$$;
+
+revoke all on function public.can_view_all_personnel() from public, anon;
+grant execute on function public.can_view_all_personnel() to authenticated;
+
+drop policy if exists profiles_admin_read_all on public.profiles;
+create policy profiles_admin_read_all
+on public.profiles
+for select
+to authenticated
+using (public.can_view_all_personnel());
+
+-- Keep the existing Super Admin-only write/RPC rules intact.
+-- Administrators receive directory visibility only; account approvals,
+-- system-role assignment, rank changes, and division assignments remain
+-- controlled by their existing server-side function permissions.
