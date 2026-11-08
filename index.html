@@ -30,7 +30,7 @@ button,input{font:inherit}button{cursor:pointer}.shell{display:flex;min-height:1
  <div class="sidebottom">LOS SANTOS POLICE DEPARTMENT<br>INTERNAL DIGITAL SERVICES · PREVIEW</div>
 </aside>
 <main class="main">
- <div class="topbar"><div class="crumb">LSPD / <span id="crumbpage">Headquarters</span></div><div class="status"><i class="dot"></i> PORTAL PREVIEW</div></div>
+ <div class="topbar"><div class="crumb">LSPD / <span id="crumbpage">Headquarters</span></div><div class="status" id="connectionStatus"><i class="dot"></i> SUPABASE CONNECTED</div></div>
  <section class="view active" id="home">
   <div class="hero"><div><div class="eyebrow">One department. One headquarters.</div><h1>Welcome to<br>Digital HQ.</h1><p>The central workspace for Los Santos Police Department personnel. Access your division, department resources, and internal tools from one place.</p></div><div class="hero-mark">✦</div></div>
   <div class="sectionhead"><div><h2>Division portals</h2><p>Select a division to continue to its dedicated workspace.</p></div><span class="count">07 DIVISIONS</span></div>
@@ -46,10 +46,10 @@ button,input{font:inherit}button{cursor:pointer}.shell{display:flex;min-height:1
  </section>
  <section class="view" id="entry">
   <button class="back" id="backHome">← Back to Headquarters</button>
-  <div class="entrybox"><div class="bigicon" id="entryIcon">✈</div><div class="eyebrow">RESTRICTED DIVISION ACCESS</div><h1 id="entryTitle">Division Portal</h1><p>Enter the access password provided by your Division Head to continue.</p>
-   <form id="entryForm"><div class="field"><label for="divisionPassword">DIVISION ACCESS PASSWORD</label><input id="divisionPassword" type="password" placeholder="Enter division password" autocomplete="off" required></div><button class="primary" type="submit">Continue to Division</button></form>
+  <div class="entrybox"><div class="bigicon" id="entryIcon">✈</div><div class="eyebrow">RESTRICTED DIVISION ACCESS</div><h1 id="entryTitle">Division Portal</h1><p>Sign in with your LSPD Digital HQ account. Your division access will be checked separately before protected tools are enabled.</p>
+   <form id="entryForm"><div class="field"><label for="loginEmail">EMAIL ADDRESS</label><input id="loginEmail" type="email" placeholder="Enter your account email" autocomplete="username" required><label for="divisionPassword" style="display:block;margin-top:14px">PASSWORD</label><input id="divisionPassword" type="password" placeholder="Enter your password" autocomplete="current-password" required></div><button class="primary" id="signInButton" type="submit">Sign in securely</button></form>
    <button class="back" id="previewDivision" type="button" style="margin-top:12px;width:100%">Preview division layout (no sign-in)</button>
-   <p class="hint">Real division access is not active yet. Do not enter a real password here. The preview button only opens sample screens and does not grant access.</p>
+   <p class="hint">Use the email and password for the account created in Supabase Authentication. Signing in does not automatically grant division permissions.</p><button class="back" id="signOutButton" type="button" style="width:100%;margin-top:10px">Sign out</button>
    <p id="entryMessage" class="hint" role="status" aria-live="polite"></p>
   </div>
  </section>
@@ -63,7 +63,15 @@ button,input{font:inherit}button{cursor:pointer}.shell{display:flex;min-height:1
  <div class="footerline"><span>© LSPD DIGITAL HEADQUARTERS</span><span>SEPARATE FROM NIGHTFALL INTELLIGENCE</span></div>
 </main>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+const SUPABASE_URL="https://fzchcwkdwslkwzeocgar.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY="sb_publishable_6cGss073d76C2g6B6d4eVQ_6Y4z8uB_";
+const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+const connectionStatus=document.getElementById("connectionStatus");
+function setConnectionStatus(label){connectionStatus.lastChild.textContent=" "+label;}
+supabaseClient.auth.getSession().then(({data,error})=>{if(error){setConnectionStatus("CONNECTION ISSUE");return;}setConnectionStatus(data.session?"SIGNED IN":"SUPABASE CONNECTED");});
+supabaseClient.auth.onAuthStateChange((_event,session)=>{setConnectionStatus(session?"SIGNED IN":"SUPABASE CONNECTED");});
 const divisions=[
  {name:"Air One",icon:"✈",desc:"Aviation operations and flight crew"},
  {name:"MCU",icon:"⬟",desc:"Motorcycle unit operations"},
@@ -86,10 +94,11 @@ const grid=document.getElementById("divisionGrid");
 divisions.forEach((d,i)=>{const b=document.createElement("button");b.className="division";b.innerHTML='<div class="divicon">'+d.icon+'</div><strong>'+d.name+'</strong><small>'+d.desc+'</small><span class="open">Open portal →</span>';b.addEventListener("click",()=>showEntry(i));grid.appendChild(b)});
 let current=null;
 function show(id,label){document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));document.getElementById(id).classList.add("active");document.getElementById("crumbpage").textContent=label;document.querySelectorAll(".nav button").forEach(b=>b.classList.toggle("active",b.dataset.nav===label.toLowerCase()));window.scrollTo({top:0,behavior:"smooth"})}
-function showEntry(i){current=divisions[i];document.getElementById("entryIcon").textContent=current.icon;document.getElementById("entryTitle").textContent=current.name;document.getElementById("divisionPassword").value="";show("entry",current.name+" Access")}
+function showEntry(i){current=divisions[i];document.getElementById("entryIcon").textContent=current.icon;document.getElementById("entryTitle").textContent=current.name;document.getElementById("divisionPassword").value="";document.getElementById("loginEmail").value="";document.getElementById("entryMessage").textContent="";show("entry",current.name+" Access")}
 document.getElementById("backHome").onclick=()=>show("home","Headquarters");
 document.getElementById("backFromDivision").onclick=()=>show("home","Headquarters");
-document.getElementById("entryForm").addEventListener("submit",e=>{e.preventDefault();const input=document.getElementById("divisionPassword");input.value="";document.getElementById("entryMessage").textContent="Sign-in is not enabled yet. No password was checked or saved. Use the preview button to inspect the sample layout.";});
+document.getElementById("entryForm").addEventListener("submit",async e=>{e.preventDefault();const email=document.getElementById("loginEmail").value.trim();const password=document.getElementById("divisionPassword").value;const button=document.getElementById("signInButton");const message=document.getElementById("entryMessage");button.disabled=true;button.textContent="Signing in...";message.textContent="";try{const {data,error}=await supabaseClient.auth.signInWithPassword({email,password});if(error)throw error;document.getElementById("divisionPassword").value="";message.textContent="Signed in successfully as "+data.user.email+". Division membership and role checks still need to be connected before protected division tools can open.";setConnectionStatus("SIGNED IN");}catch(error){message.textContent=error.message||"Unable to sign in. Check your email and password.";}finally{button.disabled=false;button.textContent="Sign in securely";}});
+document.getElementById("signOutButton").addEventListener("click",async()=>{const {error}=await supabaseClient.auth.signOut();document.getElementById("entryMessage").textContent=error?error.message:"You have been signed out.";});
 document.getElementById("previewDivision").addEventListener("click",()=>{document.getElementById("entryMessage").textContent="Opening sample layout only — this is not an authenticated session.";openDivisionPreview()});
 function openDivisionPreview(){document.getElementById("dashIcon").textContent=current.icon;document.getElementById("dashTitle").textContent=current.name;const features=current.name==="K-9"?[["Handler Roster","Assigned handlers and current duty status."],["K-9 Profiles","Partner profiles, details, and qualifications."],["Training Records","Training history and qualification progress."],["Deployment Logs","Authorized K-9 deployment records."],["Division SOPs","K-9 procedures and operational guidance."],["Announcements","Division notices and updates."]]:[["Division Overview","Division information, notices, and key updates."],["Personnel","Division roster, profiles, and assignments."],["Operations","Division-specific operational records."],["Training","Training history and qualifications."],["SOPs & Resources","Division procedures and reference material."],["Management","Division Head tools and authorized settings."]];document.getElementById("dashCards").innerHTML=features.map(x=>'<article class="dashcard"><h3>'+x[0]+'</h3><p>'+x[1]+'</p></article>').join("");show("division",current.name)}
 document.querySelectorAll(".nav button").forEach(b=>b.addEventListener("click",()=>{const key=b.dataset.nav;if(key==="home"||key==="divisions"){show("home","Headquarters");return}const title=({directory:"Personnel Directory",heads:"Division Heads Chat",chat:"All Divisions Chat",sops:"SOP Library",training:"Training & Certifications",reports:"Reports",admin:"Administration"})[key];document.getElementById("placeholderTitle").textContent=title;document.getElementById("placeholderText").textContent=resources[title];show("placeholder",title)}));
