@@ -20,6 +20,14 @@ begin
   end if;
 end $$;
 
+-- Existing non-super-admin profiles must also wait for explicit approval.
+update public.profiles p
+set approval_status = 'pending', active = false
+where not exists (
+  select 1 from public.system_roles r
+  where r.user_id = p.id and r.role = 'super_admin'
+);
+
 -- Preserve access for the already-designated Super Admin account.
 update public.profiles p
 set approval_status = 'approved', active = true
